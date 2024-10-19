@@ -1,57 +1,60 @@
 import { CronJob, sendAt } from 'cron';
 import readline from 'readline';
+import path from 'node:path';
 
-import { log } from './utils.js';
+import CONFIG from './config.js';
+import { log, sleep, getOutputFilePattern } from './utils.js';
 import { getTtStreamUrl } from './tt.js';
 import { getDefaultRecorder } from './recorder.js';
 
-const channel = 'kudriava_malyshka';
-let isRecording = false;
-let isExitSignal = false;
-const jobShedule = '*/3 * * * *';
+console.clear();
 
+const {
+	CHANNELS,
+	CHECK_SCHEDULE,
+	OUTPUT_FOLDER_PATH,
+	DEBUG,
+} = CONFIG;
+
+const channelsToCheck = new Set(CHANNELS);
 const rl = readline.createInterface({
 	input: process.stdin,
 	output: process.stdout,
 });
 
-const checkAvaliableStreams = async () => {
+const checkAvaliableStream = async (channel) => {
 	try {
-		const nextTryAt = sendAt(jobShedule).toISO();
 		const streamUrl = await getTtStreamUrl(channel);
-
-		if (!streamUrl || isRecording) {
-			log(`Recording: ${isRecording}. Next check in ${nextTryAt}`);
-			return;
+		
+		if (!streamUrl) {
+			return null;
 		}
 
-		const date = new Date();
-		const timestamp = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()} ${date.getHours()}_${date.getMinutes()}_${date.getSeconds()}`;
-		const outputFilePattern = 'records/' + channel + ' ' + timestamp + ' %03d.mp4'; // Output pattern for segments
+		let isExitSignal = false;
+		const outputPath = path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(channel));
 
-		const recorder = getDefaultRecorder(streamUrl, outputFilePattern);
+		const recorder = getDefaultRecorder(streamUrl, outputPath);
 		recorder
 			.on('start', () => {
-				isRecording = true;
-				log('Recording started: ' + channel);
+				channelsToCheck.delete(channel);
+
+				log(`Detected ${channel} is alive. Recording started...`);
 			})
 			.on('end', () => {
-				isRecording = false;
-				log('Recording finished: ' + channel);
+				channelsToCheck.add(channel);
 
-				if (isExitSignal) {
-					process.exit(0);
-				}
+				if (isExitSignal) process.exit(0);
+
+				log(`Detected ${channel} is offline. Recording finished...`);
 			})
 			.on('error', err => {
 				throw err
 			})
-			// .on('stderr', err => {
-			// 	process.stdout.moveCursor(0, -1); // up one line
-			// 	process.stdout.clearLine(1);
-
-			// 	console.log('ffmpeg log: ' + err)
-			// });
+			.on('stderr', err => {
+				if (DEBUG === 'ffmpeg') {
+					log('ffmpeg stdout: ', err);
+				}
+			});
 
 		const command = recorder.run();
 
@@ -66,16 +69,45 @@ const checkAvaliableStreams = async () => {
 		}
 
 		process.on('SIGINT', () => {
-			console.log('SIGINT')
 			command.ffmpegProc.stdin.write('q');
 			isExitSignal = true;
 		});
+
+		return streamUrl;
 	} catch (e) {
-		isRecording = false;
-		console.log(e);
-		log('checkAvaliableStreams Error: ' + e?.message);
+		channelsToCheck.add(channel);
+
+		throw e;
 	}
 }
 
-const job = new CronJob(jobShedule, checkAvaliableStreams);
+const checkAvaliableStreams = async () => {
+	for (const channel of channelsToCheck) {
+		try {
+			log(`Checking if ${channel} is alive...`);
+
+			await checkAvaliableStream(channel);
+			await sleep(100);
+		} catch (error) {
+			log(`Error while checking channel ${channel}`, error);
+		}
+	}
+
+	const nextTryAt = sendAt(CHECK_SCHEDULE)
+		.toISO({
+			includeOffset: false,
+			suppressMilliseconds: true,
+		});
+	log(`Next check on ${nextTryAt}`);
+}
+
+const job = new CronJob(
+	CHECK_SCHEDULE,
+	checkAvaliableStreams,
+	undefined,
+	undefined,
+	undefined,
+	undefined,
+	true,
+);
 job.start();

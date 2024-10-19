@@ -15,14 +15,14 @@ export async function getTtStreamUrl(channel) {
 
 // <script id="SIGI_STATE" type="application/json"></script>
 const DEFAULT_HEADERS = {
-	// Connection: 'keep-alive',
-	// 'Cache-Control': 'max-age=0',
+	Connection: 'keep-alive',
+	'Cache-Control': 'max-age=0',
 	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-	// Accept: 'text/html,application/json,application/protobuf',
-	// Referer: 'https://www.tiktok.com/',
-	// Origin: 'https://www.tiktok.com',
-	// 'Accept-Language': 'en-US,en;q=0.9',
-	// 'Accept-Encoding': 'gzip, deflate',
+	Accept: 'text/html,application/json,application/protobuf',
+	Referer: 'https://www.tiktok.com/',
+	Origin: 'https://www.tiktok.com',
+	'Accept-Language': 'en-US,en;q=0.9',
+	'Accept-Encoding': 'gzip, deflate',
 };
 const URL_WEB_LIVE = "https://www.tiktok.com/@{channel}/live";
 // const STATUS_OFFLINE = 4;
@@ -47,13 +47,12 @@ async function getLiveRoomDetails(channel) {
 		});
     const pageHtml = response?.data;
 
-    if (!pageHtml) {
-      console.error('Empty body:', response);
-      return;
-    }
-
 		const $ = cheerio.load(pageHtml);
-		const sigiState = JSON.parse($('#SIGI_STATE')?.html());
+    const sigiScript = $('#SIGI_STATE')?.html();
+
+    if (!sigiScript) throw new Error('Can\'t find #SIGI_STATE');
+    
+		const sigiState = JSON.parse(sigiScript);
     const ttUser = sigiState?.LiveRoom?.liveRoomUserInfo?.user;
     const roomId = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.roomId;
     const liveRoomInfo = sigiState?.LiveRoom?.liveRoomUserInfo?.liveRoom;

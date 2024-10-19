@@ -22,3 +22,6 @@ lerna-debug.log*
 
 # Config
 .env
+
+# Records
+records/*

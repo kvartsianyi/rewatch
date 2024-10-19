@@ -12,7 +12,7 @@ const INPUT_OPTIONS = [
 const OUTPUT_OPTIONS = [
 	'-c', 'copy',
 	'-f', 'segment',
-	'-segment_time', '600',
+	'-segment_time', '600', // 10 minutes
 	'-reset_timestamps', '1',
 	'-movflags', '+faststart'
 ];
