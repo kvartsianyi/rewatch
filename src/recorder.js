@@ -17,7 +17,7 @@ const OUTPUT_OPTIONS = [
 	'-movflags', '+faststart'
 ];
 
-export const getDefaultRecorder = (input, output) => {
+export const getBaseRecorder = (input, output) => {
 	return ffmpeg()
 		.input(input)
 		.output(output)

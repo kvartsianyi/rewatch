@@ -5,7 +5,7 @@ import path from 'node:path';
 import CONFIG from './config.js';
 import { log, sleep, getOutputFilePattern } from './utils.js';
 import { getTtStreamUrl } from './tt.js';
-import { getDefaultRecorder } from './recorder.js';
+import { getBaseRecorder } from './recorder.js';
 
 console.clear();
 
@@ -33,7 +33,7 @@ const checkAvaliableStream = async (channel) => {
 		let isExitSignal = false;
 		const outputPath = path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(channel));
 
-		const recorder = getDefaultRecorder(streamUrl, outputPath);
+		const recorder = getBaseRecorder(streamUrl, outputPath);
 		recorder
 			.on('start', () => {
 				channelsToCheck.delete(channel);
