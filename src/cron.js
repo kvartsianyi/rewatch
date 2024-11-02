@@ -1,134 +1,81 @@
-import { CronJob, sendAt } from 'cron';
-import readline from 'readline';
-import path from 'node:path';
-import fs from 'node:fs';
-
+import { CronJob } from 'cron';
 
 import CONFIG from './config.js';
-import { log, sleep, writeToLog, getOutputFilePattern } from './utils.js';
-import { getTtStreamUrl } from './tt.js';
-import { getBaseRecorder } from './recorder.js';
+import { TiktokRecorder } from './tt.js';
+import { rl } from './rl.js';
+import {
+	log,
+	sleep,
+	jobNextRunAt,
+} from './utils.js';
 
 const {
 	CHANNELS,
 	CHECK_SCHEDULE,
-	OUTPUT_FOLDER_PATH,
-	FFMPEG_LOG_PATH,
-	FFMPED_CRITICAL_WARNINGS,
-	DEBUG,
 } = CONFIG;
 
-if (fs.existsSync(FFMPEG_LOG_PATH)) {
-  fs.unlinkSync(FFMPEG_LOG_PATH);
-}
-// console.clear();
+const channelsToWatch = new Set(CHANNELS);
+const watchChannel = channel => {
+	channelsToWatch.add(channel);
+	recordingSignals.delete(channel);
+};
+const unwatchChannel = (channel, signal) => {
+	channelsToWatch.delete(channel);
+	recordingSignals.set(channel, signal);
+};
+const recordingSignals = new Map();
+const stopAllRecordings = async () => {
+	const promises = Array
+		.from(recordingSignals.values())
+		.map(fn => fn());
 
-const channelsToCheck = new Set(CHANNELS);
-const rl = readline.createInterface({
-	input: process.stdin,
-	output: process.stdout,
-});
+	return Promise.allSettled(promises);
+};
 
-const checkAvaliableStream = async (channel) => {
+const handleStreamRecording = async (channel) => {
 	try {
-		const streamUrl = await getTtStreamUrl(channel);
+		const endCallback = () => {
+			watchChannel(channel);
+			log(`Channel ${channel}. Recording finished...`);
+		};
+
+		const tiktokRecorder = new TiktokRecorder({ endCallback });
+		const stream = await tiktokRecorder.handleStreamRecording(channel);
 		
-		if (!streamUrl) {
+		if (!stream) {
 			return null;
 		}
 
-		let isExitSignal = false;
-		let isFfmpegCriticalWarning = false;
-		const outputPath = path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(channel));
+		const stopRecording = tiktokRecorder
+			.stopRecording.bind(tiktokRecorder);
+		unwatchChannel(channel, stopRecording);
 
-		const recorder = getBaseRecorder(streamUrl, outputPath)
-			.on('start', () => {
-				channelsToCheck.delete(channel);
-
-				log(`Detected ${channel} is alive. Recording started...`);
-			})
-			.on('end', () => {
-				channelsToCheck.add(channel);
-
-				if (isExitSignal) {
-					log(`Force exit. Recording finished...`);
-		
-					process.exit(0);
-				}
-
-				if (isFfmpegCriticalWarning) {
-					log(`Detected timestamp warning for stream ${channel}. Recording restart...`);
-					return handleStreamRecording(channel);
-				}
-
-				log(`Detected ${channel} is offline. Recording finished...`);
-			})
-			.on('error', err => {
-				throw err
-			})
-
-		const command = recorder.run();
-
-		const ffmpegShutdown = () => command?.ffmpegProc?.stdin.write('q');
-
-		recorder.on('stderr', async (stdoutLine) => {
-			if (DEBUG === 'ffmpeg') {
-				await writeToLog(FFMPEG_LOG_PATH, stdoutLine);
-			}
-
-			isFfmpegCriticalWarning = FFMPED_CRITICAL_WARNINGS
-				.some(warning => stdoutLine.includes(warning));
-			if (isFfmpegCriticalWarning) {
-				ffmpegShutdown();
-			}
-		});
-
-		rl.on('line', () => {
-			ffmpegShutdown();
-			isExitSignal = true;
-			rl.close();
-		});
-
-		if (process.platform === 'win32') {
-			rl.on('SIGINT', () => process.emit('SIGINT'));
-		}
-
-		process.on('SIGINT', () => {
-			ffmpegShutdown();
-			isExitSignal = true;
-		});
-
-		return streamUrl;
+		return stream;
 	} catch (e) {
-		channelsToCheck.add(channel);
+		watchChannel(channel);
 
 		throw e;
 	}
 }
 
-const checkAvaliableStreams = async () => {
-	for (const channel of channelsToCheck) {
+const handleStreamsRecording = async () => {
+	for (const channel of channelsToWatch) {
 		try {
 			log(`Checking if ${channel} is alive...`);
 
-			await checkAvaliableStream(channel);
+			await handleStreamRecording(channel);
 			await sleep(100);
 		} catch (error) {
 			log(`Error while checking channel ${channel}`, error);
 		}
 	}
 
-	const nextTryAt = sendAt(CHECK_SCHEDULE)
-		.toISO({
-			includeOffset: false,
-			suppressMilliseconds: true,
-		});
-	log(`Next check on ${nextTryAt}`);
+	log(`Next check on ${jobNextRunAt()}`);
 }
 
 const job = new CronJob(
 	CHECK_SCHEDULE,
-	checkAvaliableStreams,
+	handleStreamsRecording,
 	undefined,
 	undefined,
 	undefined,
@@ -136,3 +83,13 @@ const job = new CronJob(
 	true,
 );
 job.start();
+
+rl.on('line', async () => {
+	// await tiktokRecorder.stopRecording();
+	rl.close();
+});
+
+process.on('SIGINT', async () => {
+	await stopAllRecordings();
+	process.exit(0);
+});

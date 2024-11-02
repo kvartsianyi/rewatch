@@ -11,11 +11,9 @@ import {
 import CONFIG from './config.js';
 
 const {
-  CHANNELS,
 	OUTPUT_FOLDER_PATH,
 	FFMPEG_LOG_PATH,
 	FFMPED_CRITICAL_WARNINGS,
-	IS_WINDOWS,
 	DEBUG,
 } = CONFIG;
 
@@ -46,61 +44,6 @@ const STATUSES = {
 
 // const channel = 'angelica88884';
 // const channel = 'kudriava_malyshka';
-const channel_ = 'angelica88884';
-const stream = await getTtStreamUrl(channel_)
-if (stream)
-  console.log(stream);
-
-export async function getTtStreamUrl(channel) {
-  const liveRoomInfo = await getLiveRoomDetails(channel);
-
-  if (!liveRoomInfo) {
-    return null;
-  }
-
-  const streams = parseStreams(liveRoomInfo.streamData);
-
-  return findBestStreamQualityUrl(streams);
-}
-
-async function getLiveRoomDetails(channel) {
-  try {
-    const liveUrl = URL_WEB_LIVE.replace("{channel}", channel);
-    const response = await axios.get(liveUrl, {
-			headers: DEFAULT_HEADERS,
-		});
-    const pageHtml = response?.data;
-
-		const $ = cheerio.load(pageHtml);
-    const sigiScript = $('#SIGI_STATE')?.html();
-
-    if (!sigiScript) throw new Error('Can\'t find #SIGI_STATE');
-    
-		const sigiState = JSON.parse(sigiScript);
-    const ttUser = sigiState?.LiveRoom?.liveRoomUserInfo?.user;
-    const roomId = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.roomId;
-    const liveRoomInfo = sigiState?.LiveRoom?.liveRoomUserInfo?.liveRoom;
-
-    if (liveRoomInfo.status !== STATUSES.LIVE) {
-      return null;
-    }
-
-    return liveRoomInfo;
-  } catch (error) {
-    console.error("Error fetching live room details:", error);
-    return null;
-  }
-}
-
-function parseStreams(streamData) {
-  const { stream_data } = streamData?.pull_data;
-
-  return JSON.parse(stream_data)?.data;
-}
-
-function findBestStreamQualityUrl(streams, type = 'flv') {
-  return streams?.origin?.main?.[type];
-}
 
 export class TiktokParser {
   #axios;
@@ -161,17 +104,25 @@ export class TiktokParser {
   }
 }
 
+// TODO: Make it properly
+const channel_ = 'angelica88884';
+
+const parser = new TiktokParser();
+const stream = await parser.getTtStreamUrl(channel_);
+if (stream)
+  console.log(stream);
+
 export class TiktokRecorder {
 	#recorder;
 	#parser;
   channel;
 
-	constructor() {
+	constructor(options) {
     this.#parser = new TiktokParser();
 		this.#recorder = new Recorder()
       .init({
         onStartCallback: this.#startCallback.bind(this),
-        onEndCallback: this.#endCallback.bind(this),
+        onEndCallback: options?.endCallback || this.#endCallback.bind(this),
         onErrorCallback: this.#errorCallback.bind(this),
         onStdoutCallback: this.#stdoutCallback.bind(this),
       });
