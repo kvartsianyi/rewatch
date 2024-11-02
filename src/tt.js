@@ -1,17 +1,23 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
+import path from 'node:path';
 
-export async function getTtStreamUrl(channel) {
-  const liveRoomInfo = await getLiveRoomDetails(channel);
+import { Recorder } from './recorder.js';
+import {
+	log,
+	writeToLog,
+	getOutputFilePattern,
+} from './utils.js';
+import CONFIG from './config.js';
 
-  if (!liveRoomInfo) {
-    return null;
-  }
-
-  const streams = parseStreams(liveRoomInfo.streamData);
-
-  return findBestStreamQualityUrl(streams);
-}
+const {
+  CHANNELS,
+	OUTPUT_FOLDER_PATH,
+	FFMPEG_LOG_PATH,
+	FFMPED_CRITICAL_WARNINGS,
+	IS_WINDOWS,
+	DEBUG,
+} = CONFIG;
 
 // <script id="SIGI_STATE" type="application/json"></script>
 const DEFAULT_HEADERS = {
@@ -38,7 +44,25 @@ const STATUSES = {
 // 5 - Ended (Something like terminated or due to technical issues)
 // 6 - Banned or Restricted (usually the result of violations during the stream, leading to a ban).
 
-// Function to get live room details based on room ID
+// const channel = 'angelica88884';
+// const channel = 'kudriava_malyshka';
+const channel_ = 'angelica88884';
+const stream = await getTtStreamUrl(channel_)
+if (stream)
+  console.log(stream);
+
+export async function getTtStreamUrl(channel) {
+  const liveRoomInfo = await getLiveRoomDetails(channel);
+
+  if (!liveRoomInfo) {
+    return null;
+  }
+
+  const streams = parseStreams(liveRoomInfo.streamData);
+
+  return findBestStreamQualityUrl(streams);
+}
+
 async function getLiveRoomDetails(channel) {
   try {
     const liveUrl = URL_WEB_LIVE.replace("{channel}", channel);
@@ -76,4 +100,138 @@ function parseStreams(streamData) {
 
 function findBestStreamQualityUrl(streams, type = 'flv') {
   return streams?.origin?.main?.[type];
+}
+
+export class TiktokParser {
+  #axios;
+
+  constructor() {
+    this.#axios = axios;
+  }
+
+  async getTtStreamUrl(channel) {
+    const liveRoomInfo = await this.#getLiveRoomDetails(channel);
+  
+    if (!liveRoomInfo) {
+      return null;
+    }
+  
+    const streams = this.#parseStreams(liveRoomInfo.streamData);
+  
+    return this.#findBestStreamQualityUrl(streams);
+  }
+
+  async #getLiveRoomDetails(channel) {
+    try {
+      const liveUrl = URL_WEB_LIVE.replace("{channel}", channel);
+      const response = await this.#axios.get(liveUrl, {
+        headers: DEFAULT_HEADERS,
+      });
+      const pageHtml = response?.data;
+  
+      const $ = cheerio.load(pageHtml);
+      const sigiScript = $('#SIGI_STATE')?.html();
+  
+      if (!sigiScript) throw new Error('Can\'t find #SIGI_STATE');
+      
+      const sigiState = JSON.parse(sigiScript);
+      const ttUser = sigiState?.LiveRoom?.liveRoomUserInfo?.user;
+      const roomId = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.roomId;
+      const liveRoomInfo = sigiState?.LiveRoom?.liveRoomUserInfo?.liveRoom;
+  
+      if (liveRoomInfo.status !== STATUSES.LIVE) {
+        return null;
+      }
+  
+      return liveRoomInfo;
+    } catch (error) {
+      console.error("Error fetching live room details:", error);
+      return null;
+    }
+  }
+
+  #parseStreams(streamData) {
+    const { stream_data } = streamData?.pull_data;
+  
+    return JSON.parse(stream_data)?.data;
+  }
+  
+  #findBestStreamQualityUrl(streams, type = 'flv') {
+    return streams?.origin?.main?.[type];
+  }
+}
+
+export class TiktokRecorder {
+	#recorder;
+	#parser;
+  channel;
+
+	constructor() {
+    this.#parser = new TiktokParser();
+		this.#recorder = new Recorder()
+      .init({
+        onStartCallback: this.#startCallback.bind(this),
+        onEndCallback: this.#endCallback.bind(this),
+        onErrorCallback: this.#errorCallback.bind(this),
+        onStdoutCallback: this.#stdoutCallback.bind(this),
+      });
+	}
+
+  async handleStreamRecording(channel) {
+    try {
+      this.channel = channel;
+      const streamUrl = await this.#parser.getTtStreamUrl(this.channel);
+		
+      if (!streamUrl) {
+        return null;
+      }
+
+      const outputPath = this.#generateOutputPath(this.channel);
+
+      this.startRecording(streamUrl, outputPath);
+
+      return streamUrl;
+    } catch (e) {
+      log('An error during "handleStreamRecording" process', e);
+    }
+  }
+
+  startRecording(input, output) {
+    return this.#recorder.run(input, output);
+  }
+
+  async stopRecording() {
+    return this.#recorder.gracefulShutdown();
+  }
+
+  #generateOutputPath() {
+    return path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(this.channel));
+  }
+
+	#startCallback() {
+    log(`Channel ${this.channel}. Recording started...`);
+  }
+
+  #endCallback() {
+    log(`Channel ${this.channel}. Recording finished...`);
+    this.channel = null;
+  }
+
+  #errorCallback(err, stdout, stderr) {
+    log(`Channel ${this.channel}. Error during recording:`, err);
+    log(`Ffmpeg stdout:`, stdout);
+    log(`Ffmpeg stderr:`, stderr);
+  }
+
+  async #stdoutCallback(stdoutLine) {
+    if (DEBUG === 'ffmpeg') {
+				await writeToLog(FFMPEG_LOG_PATH, stdoutLine);
+			}
+
+    const isCriticalWarning = FFMPED_CRITICAL_WARNINGS
+      .some(warning => stdoutLine.includes(warning));
+    if (isCriticalWarning) {
+      await this.gracefulShutdown();
+    }
+  }
 }

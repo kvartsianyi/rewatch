@@ -1,3 +1,11 @@
+import fs from 'node:fs';
+import { promisify } from 'node:util';
+
+import CONFIG from './config.js';
+
+const { EOL } = CONFIG;
+const appendFileAsync = promisify(fs.appendFile);
+
 export const log = (message, data = '') => console.log(message, data);
 
 export const timestamp = (date = new Date()) => {
@@ -16,3 +24,5 @@ export const timestamp = (date = new Date()) => {
 export const getOutputFilePattern = channel => [channel, timestamp(), '%03d.mp4'].join('_');
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+export const writeToLog = async (path, data) => appendFileAsync(path, data + EOL);

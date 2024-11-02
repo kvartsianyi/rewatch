@@ -1,20 +1,27 @@
 import { CronJob, sendAt } from 'cron';
 import readline from 'readline';
 import path from 'node:path';
+import fs from 'node:fs';
+
 
 import CONFIG from './config.js';
-import { log, sleep, getOutputFilePattern } from './utils.js';
+import { log, sleep, writeToLog, getOutputFilePattern } from './utils.js';
 import { getTtStreamUrl } from './tt.js';
 import { getBaseRecorder } from './recorder.js';
-
-console.clear();
 
 const {
 	CHANNELS,
 	CHECK_SCHEDULE,
 	OUTPUT_FOLDER_PATH,
+	FFMPEG_LOG_PATH,
+	FFMPED_CRITICAL_WARNINGS,
 	DEBUG,
 } = CONFIG;
+
+if (fs.existsSync(FFMPEG_LOG_PATH)) {
+  fs.unlinkSync(FFMPEG_LOG_PATH);
+}
+// console.clear();
 
 const channelsToCheck = new Set(CHANNELS);
 const rl = readline.createInterface({
@@ -31,10 +38,10 @@ const checkAvaliableStream = async (channel) => {
 		}
 
 		let isExitSignal = false;
+		let isFfmpegCriticalWarning = false;
 		const outputPath = path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(channel));
 
-		const recorder = getBaseRecorder(streamUrl, outputPath);
-		recorder
+		const recorder = getBaseRecorder(streamUrl, outputPath)
 			.on('start', () => {
 				channelsToCheck.delete(channel);
 
@@ -43,23 +50,41 @@ const checkAvaliableStream = async (channel) => {
 			.on('end', () => {
 				channelsToCheck.add(channel);
 
-				if (isExitSignal) process.exit(0);
+				if (isExitSignal) {
+					log(`Force exit. Recording finished...`);
+		
+					process.exit(0);
+				}
+
+				if (isFfmpegCriticalWarning) {
+					log(`Detected timestamp warning for stream ${channel}. Recording restart...`);
+					return handleStreamRecording(channel);
+				}
 
 				log(`Detected ${channel} is offline. Recording finished...`);
 			})
 			.on('error', err => {
 				throw err
 			})
-			.on('stderr', err => {
-				if (DEBUG === 'ffmpeg') {
-					log('ffmpeg stdout: ', err);
-				}
-			});
 
 		const command = recorder.run();
 
+		const ffmpegShutdown = () => command?.ffmpegProc?.stdin.write('q');
+
+		recorder.on('stderr', async (stdoutLine) => {
+			if (DEBUG === 'ffmpeg') {
+				await writeToLog(FFMPEG_LOG_PATH, stdoutLine);
+			}
+
+			isFfmpegCriticalWarning = FFMPED_CRITICAL_WARNINGS
+				.some(warning => stdoutLine.includes(warning));
+			if (isFfmpegCriticalWarning) {
+				ffmpegShutdown();
+			}
+		});
+
 		rl.on('line', () => {
-			command.ffmpegProc.stdin.write('q');
+			ffmpegShutdown();
 			isExitSignal = true;
 			rl.close();
 		});
@@ -69,7 +94,7 @@ const checkAvaliableStream = async (channel) => {
 		}
 
 		process.on('SIGINT', () => {
-			command.ffmpegProc.stdin.write('q');
+			ffmpegShutdown();
 			isExitSignal = true;
 		});
 
