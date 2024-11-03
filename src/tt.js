@@ -3,47 +3,22 @@ import axios from 'axios';
 import path from 'node:path';
 
 import { Recorder } from './recorder.js';
+import CONFIG from './config.js';
 import {
 	log,
 	writeToLog,
 	getOutputFilePattern,
 } from './utils.js';
-import CONFIG from './config.js';
 
 const {
 	OUTPUT_FOLDER_PATH,
 	FFMPEG_LOG_PATH,
 	FFMPED_CRITICAL_WARNINGS,
+  TT_HEADERS,
+	URL_WEB_LIVE,
+	LIVE_STATUS,
 	DEBUG,
 } = CONFIG;
-
-// <script id="SIGI_STATE" type="application/json"></script>
-const DEFAULT_HEADERS = {
-	Connection: 'keep-alive',
-	'Cache-Control': 'max-age=0',
-	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-	Accept: 'text/html,application/json,application/protobuf',
-	Referer: 'https://www.tiktok.com/',
-	Origin: 'https://www.tiktok.com',
-	'Accept-Language': 'en-US,en;q=0.9',
-	'Accept-Encoding': 'gzip, deflate',
-};
-const URL_WEB_LIVE = "https://www.tiktok.com/@{channel}/live";
-// const STATUS_OFFLINE = 4;
-const STATUSES = {
-  LIVE: 2,
-};
-
-// 0 - Error or Inactive stream.
-// 1 - Stream Starting or Preparing (the stream is not yet live but in the setup phase).
-// 2 - Live
-// 3 - Temporarily Suspended (for streams interrupted, often due to network issues).
-// 4 - Offline
-// 5 - Ended (Something like terminated or due to technical issues)
-// 6 - Banned or Restricted (usually the result of violations during the stream, leading to a ban).
-
-// const channel = 'angelica88884';
-// const channel = 'kudriava_malyshka';
 
 export class TiktokParser {
   #axios;
@@ -68,7 +43,7 @@ export class TiktokParser {
     try {
       const liveUrl = URL_WEB_LIVE.replace("{channel}", channel);
       const response = await this.#axios.get(liveUrl, {
-        headers: DEFAULT_HEADERS,
+        headers: TT_HEADERS,
       });
       const pageHtml = response?.data;
   
@@ -78,11 +53,14 @@ export class TiktokParser {
       if (!sigiScript) throw new Error('Can\'t find #SIGI_STATE');
       
       const sigiState = JSON.parse(sigiScript);
-      const ttUser = sigiState?.LiveRoom?.liveRoomUserInfo?.user;
-      const roomId = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.roomId;
+      if (!sigiState?.LiveRoom) {
+        return null;
+      }
+      
+      // const ttUser = sigiState?.LiveRoom?.liveRoomUserInfo?.user;
+      // const roomId = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.roomId;
       const liveRoomInfo = sigiState?.LiveRoom?.liveRoomUserInfo?.liveRoom;
-  
-      if (liveRoomInfo.status !== STATUSES.LIVE) {
+      if (liveRoomInfo?.status !== LIVE_STATUS) {
         return null;
       }
   

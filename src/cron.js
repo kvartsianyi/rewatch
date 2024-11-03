@@ -85,8 +85,9 @@ const job = new CronJob(
 job.start();
 
 rl.on('line', async () => {
-	// await tiktokRecorder.stopRecording();
+	await stopAllRecordings();
 	rl.close();
+	process.exit(0);
 });
 
 process.on('SIGINT', async () => {
