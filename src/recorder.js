@@ -60,7 +60,7 @@ export class Recorder {
 				return rej(new Error('FFmpeg process doesn\'t exist'));
 			}
 
-			ffmpegProc.on('exit', this.#procesExitCallback(res, rej));
+			ffmpegProc.once('exit', this.#procesExitCallback(res, rej));
 			ffmpegProc.stdin.write('q');
 		});
 	}

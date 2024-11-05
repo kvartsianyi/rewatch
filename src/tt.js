@@ -160,7 +160,7 @@ export class TiktokRecorder {
     const isCriticalWarning = FFMPED_CRITICAL_WARNINGS
       .some(warning => stdoutLine.includes(warning));
     if (isCriticalWarning) {
-      await this.gracefulShutdown();
+      await this.stopRecording();
     }
   }
 }
