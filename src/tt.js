@@ -35,8 +35,9 @@ export class TiktokParser {
     }
   
     const streams = this.#parseStreams(liveRoomInfo.streamData);
-  
-    return this.#findBestStreamQualityUrl(streams);
+    const originalStreamUrl = this.#findBestStreamQualityUrl(streams);
+
+    return this.#isStreamAccessible(originalStreamUrl);
   }
 
   async #getLiveRoomDetails(channel) {
@@ -79,6 +80,21 @@ export class TiktokParser {
   
   #findBestStreamQualityUrl(streams, type = 'flv') {
     return streams?.origin?.main?.[type];
+  }
+
+  async #isStreamAccessible(streamUrl) {
+    try {
+      const { status } = await this.#axios.head(streamUrl);
+
+      return status === 200 ? streamUrl : null;
+    } catch (e) {
+      if (e.response.status === 404) {
+        return null;
+      }
+
+      log('Error during stream accessibility check: ', e);
+      throw e;
+    }
   }
 }
 
