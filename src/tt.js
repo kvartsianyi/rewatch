@@ -84,11 +84,13 @@ export class TiktokParser {
 
   async #isStreamAccessible(streamUrl) {
     try {
-      const { status } = await this.#axios.head(streamUrl);
+      const { status } = await this.#axios.head(streamUrl, {
+        responseType: 'stream',
+      });
 
       return status === 200 ? streamUrl : null;
     } catch (e) {
-      if (e.response.status === 404) {
+      if (e?.response?.status === 404) {
         return null;
       }
 

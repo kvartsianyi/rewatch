@@ -17,7 +17,6 @@ const OUTPUT_OPTIONS = [
 
 export class Recorder {
 	#ffmpeg;
-	#recorder;
 	#process;
 
 	constructor() {
@@ -31,20 +30,21 @@ export class Recorder {
 		onErrorCallback,
 		onStdoutCallback,
 	}) {
-		this.#recorder = this.#ffmpeg()
+		this.#process = this.#ffmpeg()
 			.on('start', onStartCallback)
 			.on('end', onEndCallback)
 			.on('error', onErrorCallback)
-			.on('stderr', onStdoutCallback);
+			.on('stderr', onStdoutCallback)
+			.once('exit', () => this.#process.removeAllListeners());
 
 		return this;
 	};
 
 	run(input, output) {
-		if (!this.#recorder) {
+		if (!this.#process) {
 			throw new Error('Init recorder first')
 		}
-		this.#process = this.#recorder
+		this.#process = this.#process
 			.input(input)
 			.output(output)
 			.inputOptions(INPUT_OPTIONS)
