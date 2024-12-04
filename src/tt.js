@@ -33,6 +33,10 @@ export class TiktokParser {
     if (!liveRoomInfo) {
       return null;
     }
+
+    if (!liveRoomInfo?.streamData) {
+      throw new Error(`${channel} require to be authenticated.`);
+    }
   
     const streams = this.#parseStreams(liveRoomInfo.streamData);
     const originalStreamUrl = this.#findBestStreamQualityUrl(streams);
@@ -99,14 +103,6 @@ export class TiktokParser {
     }
   }
 }
-
-// TODO: Make it properly
-const channel_ = 'angelica88884';
-
-const parser = new TiktokParser();
-const stream = await parser.getTtStreamUrl(channel_);
-if (stream)
-  console.log(stream);
 
 export class TiktokRecorder {
 	#recorder;

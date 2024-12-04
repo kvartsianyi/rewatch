@@ -1,6 +1,10 @@
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
 
+import CONFIG from './config.js';
+
+const { OUTPUT_FILE_EXT } = CONFIG;
+
 const INPUT_OPTIONS = [
 	'-reconnect', '1',
 	'-reconnect_at_eof', '1',
@@ -12,7 +16,7 @@ const OUTPUT_OPTIONS = [
 	'-f', 'segment',
 	'-segment_time', '600', // 10 minutes
 	'-reset_timestamps', '1',
-	'-movflags', '+faststart'
+	...(OUTPUT_FILE_EXT === 'mp4' ? ['-movflags', '+faststart'] : []),
 ];
 
 export class Recorder {
@@ -30,6 +34,8 @@ export class Recorder {
 		onErrorCallback,
 		onStdoutCallback,
 	}) {
+		// (node:516) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 exit listeners added to [ChildProcess]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+		// (Use `node --trace-warnings ...` to show where the warning was created)
 		this.#process = this.#ffmpeg()
 			.on('start', onStartCallback)
 			.on('end', onEndCallback)

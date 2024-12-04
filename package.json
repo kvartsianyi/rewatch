@@ -7,8 +7,8 @@
     "node": "20"
   },
   "scripts": {
-    "start": "node --env-file=.env ./src/index.js",
-    "start:auto": "node --env-file=.env ./src/cron.js"
+    "start:single": "node --trace-warnings --env-file=.env ./src/index.js",
+    "start": "node --trace-warnings --env-file=.env ./src/cron.js"
   },
   "keywords": [],
   "author": "",

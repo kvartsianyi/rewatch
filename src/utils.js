@@ -4,7 +4,11 @@ import { sendAt } from 'cron';
 
 import CONFIG from './config.js';
 
-const { EOL, CHECK_SCHEDULE } = CONFIG;
+const {
+	EOL,
+	CHECK_SCHEDULE,
+	OUTPUT_FILE_EXT,
+} = CONFIG;
 const appendFileAsync = promisify(fs.appendFile);
 
 export const log = (message, data = '') => console.log(message, data);
@@ -22,7 +26,11 @@ export const timestamp = (date = new Date()) => {
 	return [year, month, day, hour, minute, second].join('_');
 }
 
-export const getOutputFilePattern = channel => [channel, timestamp(), '%03d.mp4'].join('_');
+export const getOutputFilePattern = channel => [
+	channel,
+	timestamp(),
+	`%03d.${OUTPUT_FILE_EXT}`,
+].join('_');
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
