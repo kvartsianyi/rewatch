@@ -26,8 +26,8 @@ export const timestamp = (date = new Date()) => {
 	return [year, month, day, hour, minute, second].join('_');
 }
 
-export const getOutputFilePattern = channel => [
-	channel,
+export const getOutputFilePattern = uniqueId => [
+	uniqueId,
 	timestamp(),
 	`%03d.${OUTPUT_FILE_EXT}`,
 ].join('_');

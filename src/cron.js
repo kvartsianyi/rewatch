@@ -15,82 +15,76 @@ const {
 } = CONFIG;
 
 const channelsToWatch = new Set(CHANNELS);
-const watchChannel = channel => {
-	channelsToWatch.add(channel);
-	recordingSignals.delete(channel);
-};
-const unwatchChannel = (channel, signal) => {
-	channelsToWatch.delete(channel);
-	recordingSignals.set(channel, signal);
-};
-const recordingSignals = new Map();
-const stopAllRecordings = async () => {
-	const promises = Array
-		.from(recordingSignals.values())
-		.map(fn => fn());
 
-	return Promise.allSettled(promises);
-};
+const handleStreamRecording = async (uniqueId) => {
+	const tiktokRecorder = new TiktokRecorder();
+	tiktokRecorder.setChannel(uniqueId);
+	const stream = await tiktokRecorder.handleStreamRecording(uniqueId);
 
-const handleStreamRecording = async (channel) => {
-	try {
-		const endCallback = () => {
-			watchChannel(channel);
-			log(`Channel ${channel}. Recording finished...`);
-		};
+	if (!stream) return null;
+	channelsToWatch.delete(uniqueId);
 
-		const tiktokRecorder = new TiktokRecorder({ endCallback });
-		const stream = await tiktokRecorder.handleStreamRecording(channel);
-		
-		if (!stream) {
-			return null;
-		}
-
-		const stopRecording = tiktokRecorder
-			.stopRecording.bind(tiktokRecorder);
-		unwatchChannel(channel, stopRecording);
-
-		return stream;
-	} catch (e) {
-		watchChannel(channel);
-
-		throw e;
+	const gracefullShutdown = () => {
+		tiktokRecorder.stopRecording();
+		channelsToWatch.add(uniqueId);
 	}
+	const removeShutdownListeners = () => {
+		rl.removeListener('line', gracefullShutdown);
+		process.removeListener('SIGINT', gracefullShutdown);
+		channelsToWatch.add(uniqueId);
+	};
+
+	rl.once('line', gracefullShutdown);
+	process.once('SIGINT', gracefullShutdown);
+
+	tiktokRecorder.on('end', removeShutdownListeners);
+	tiktokRecorder.on('error', removeShutdownListeners);
+
+	return stream;
 }
 
-const handleStreamsRecording = async () => {
+const handleStreamsRecordingJob = async () => {
 	for (const channel of channelsToWatch) {
 		try {
-			log(`Checking if ${channel} is alive...`);
+			const stream = await handleStreamRecording(channel);
 
-			await handleStreamRecording(channel);
-			await sleep(100);
+			log(`User ${channel} is ${stream ? 'alive...' : 'currently offline...'}`);
 		} catch (error) {
-			log(`Error while checking channel ${channel}`, error);
+			log(`[handleStreamsRecordingJob] Channel ${channel}.`, error);
 		}
 	}
 
-	log(`Next check on ${jobNextRunAt()}`);
+	if (channelsToWatch.size === CHANNELS.length) {
+		log(`Next check on ${jobNextRunAt()}`);
+	}
 }
 
-const job = new CronJob(
-	CHECK_SCHEDULE,
-	handleStreamsRecording,
-	undefined,
-	undefined,
-	undefined,
-	undefined,
-	true,
-);
-job.start();
+const handleStreamsRecording = CronJob.from({
+	cronTime: CHECK_SCHEDULE,
+	onTick: handleStreamsRecordingJob,
+	runOnInit: true,
+});
+handleStreamsRecording.start();
 
-rl.on('line', async () => {
-	await stopAllRecordings();
+const shutDown = async () => {
+	let retryAttempts = 5;
+
+	while (retryAttempts > 0) {
+		retryAttempts--;
+
+		// All recordings are stopped
+		if (channelsToWatch.size === CHANNELS.length) {
+			log('Shutting down...');
+			rl.close();
+			return process.exit(0);
+		}
+
+		await sleep(100);
+	}
+
 	rl.close();
 	process.exit(0);
-});
+}
 
-process.on('SIGINT', async () => {
-	await stopAllRecordings();
-	process.exit(0);
-});
+rl.on('line', shutDown);
+process.on('SIGINT', shutDown);

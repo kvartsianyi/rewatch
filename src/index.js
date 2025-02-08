@@ -1,27 +1,30 @@
 import { TiktokRecorder } from './tt.js';
+import CONFIG from './config.js';
 import { log } from './utils.js';
 import { rl } from './rl.js';
 
-const channel = 'kovrik_evalviv1';
+const { CHANNELS } = CONFIG;
 
-await runRecorder(channel);
+const uniqueId = CHANNELS[0];
 
-async function runRecorder(channel) {
+await runRecorder(uniqueId);
+
+async function runRecorder(uniqueId) {
   const tiktokRecorder = new TiktokRecorder();
-  const stream = await tiktokRecorder.handleStreamRecording(channel);
+  tiktokRecorder.setChannel(uniqueId);
+  const stream = await tiktokRecorder.handleStreamRecording(uniqueId);
   
   if (!stream) {
-    log(`${channel} is currently offline.`);
+    log(`${uniqueId} is currently offline.`);
+    process.exit(0);
+  }
+
+  const gracefullShutdown = async () => {
+    await tiktokRecorder.stopRecording();
+    rl.close();
     process.exit(0);
   }
   
-  // Handle recording stop by pressing key from terminal
-  rl.on('line', async () => {
-    await tiktokRecorder.stopRecording();
-    rl.close();
-  });
-  
-  process.on('SIGINT', async () => {
-    await tiktokRecorder.stopRecording();
-  }); 
+  rl.once('line', gracefullShutdown);
+  process.once('SIGINT', gracefullShutdown); 
 }

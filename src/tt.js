@@ -13,29 +13,48 @@ import {
 const {
 	OUTPUT_FOLDER_PATH,
 	FFMPEG_LOG_PATH,
-	FFMPED_CRITICAL_WARNINGS,
-  TT_HEADERS,
-	URL_WEB_LIVE,
+  DEFAULT_TT_REQUEST_HEADERS,
+  DEFAULT_TT_CLIENT_PARAMS,
+  API_LIVE_ROOM_URL,
+	WEB_LIVE_URL,
 	LIVE_STATUS,
 	DEBUG,
 } = CONFIG;
 
 export class TiktokParser {
-  #axios;
+  #httpClient;
 
   constructor() {
-    this.#axios = axios;
+    this.#httpClient = axios.create({
+      timeout: 10000,
+      headers: DEFAULT_TT_REQUEST_HEADERS,
+    });
   }
 
-  async getTtStreamUrl(channel) {
-    const liveRoomInfo = await this.#getLiveRoomDetails(channel);
+  async getTtStreamUrl(uniqueId) {
+    let liveRoomInfo = {};
+
+		try {
+			try {
+				liveRoomInfo = await this.#getLiveRoomInfoFromApi(uniqueId);
+			} catch (e) {
+				// Use fallback method
+				liveRoomInfo = await this.#getLiveRoomInfoFromHtml(uniqueId);
+			}
+		} catch (e) {
+			throw new Error(`Failed to retrieve live room info for ${uniqueId}. ${err.message}`);
+		}
   
     if (!liveRoomInfo) {
       return null;
     }
 
-    if (!liveRoomInfo?.streamData) {
-      throw new Error(`${channel} require to be authenticated.`);
+    if (!liveRoomInfo.streamData) {
+      throw new Error(`${uniqueId} require to be authenticated.`);
+    }
+
+    if (liveRoomInfo.status !== LIVE_STATUS) {
+      return null;
     }
   
     const streams = this.#parseStreams(liveRoomInfo.streamData);
@@ -44,11 +63,11 @@ export class TiktokParser {
     return this.#isStreamAccessible(originalStreamUrl);
   }
 
-  async #getLiveRoomDetails(channel) {
+  async #getLiveRoomInfoFromHtml(uniqueId) {
     try {
-      const liveUrl = URL_WEB_LIVE.replace("{channel}", channel);
-      const response = await this.#axios.get(liveUrl, {
-        headers: TT_HEADERS,
+      const liveUrl = WEB_LIVE_URL.replace("{uniqueId}", uniqueId);
+      const response = await this.#httpClient.get(liveUrl, {
+        headers: DEFAULT_TT_REQUEST_HEADERS,
       });
       const pageHtml = response?.data;
   
@@ -65,15 +84,26 @@ export class TiktokParser {
       // const ttUser = sigiState?.LiveRoom?.liveRoomUserInfo?.user;
       // const roomId = sigiState?.LiveRoom?.liveRoomUserInfo?.user?.roomId;
       const liveRoomInfo = sigiState?.LiveRoom?.liveRoomUserInfo?.liveRoom;
-      if (liveRoomInfo?.status !== LIVE_STATUS) {
-        return null;
-      }
   
       return liveRoomInfo;
     } catch (error) {
       console.error("Error fetching live room details:", error);
       return null;
     }
+  }
+  
+  async #getLiveRoomInfoFromApi(uniqueId) {
+    const { data: liveRoomResponse } = await this.#httpClient(API_LIVE_ROOM_URL, {
+      params: { 
+        ...DEFAULT_TT_CLIENT_PARAMS,
+        uniqueId,
+        sourceType: 54, // Magic number from TikTok
+      },
+    });
+
+    const liveRoomInfo = liveRoomResponse?.data?.liveRoom;
+
+    return liveRoomInfo;
   }
 
   #parseStreams(streamData) {
@@ -88,7 +118,7 @@ export class TiktokParser {
 
   async #isStreamAccessible(streamUrl) {
     try {
-      const { status } = await this.#axios.head(streamUrl, {
+      const { status } = await this.#httpClient.head(streamUrl, {
         responseType: 'stream',
       });
 
@@ -107,35 +137,41 @@ export class TiktokParser {
 export class TiktokRecorder {
 	#recorder;
 	#parser;
-  channel;
+  uniqueId;
 
 	constructor(options) {
     this.#parser = new TiktokParser();
-		this.#recorder = new Recorder()
-      .init({
-        onStartCallback: this.#startCallback.bind(this),
-        onEndCallback: options?.endCallback || this.#endCallback.bind(this),
-        onErrorCallback: this.#errorCallback.bind(this),
-        onStdoutCallback: this.#stdoutCallback.bind(this),
-      });
+		this.#recorder = new Recorder().init();
+    this.#recorder
+      .on('start', this.#startCallback.bind(this))
+      .on('end', options?.endCallback || this.#endCallback.bind(this))
+      .on('error', this.#errorCallback.bind(this))
+      .on('stderr', this.#stdoutCallback.bind(this));
 	}
 
-  async handleStreamRecording(channel) {
+  setChannel(uniqueId) {
+    this.uniqueId = uniqueId;
+  }
+
+  async handleStreamRecording() {
     try {
-      this.channel = channel;
-      const streamUrl = await this.#parser.getTtStreamUrl(this.channel);
+      if (!this.uniqueId) {
+        throw new Error('Channel is required');
+      }
+
+      const streamUrl = await this.#parser.getTtStreamUrl(this.uniqueId);
 		
       if (!streamUrl) {
         return null;
       }
 
-      const outputPath = this.#generateOutputPath(this.channel);
+      const outputPath = this.#generateOutputPath(this.uniqueId);
 
       this.startRecording(streamUrl, outputPath);
 
       return streamUrl;
     } catch (e) {
-      log('An error during "handleStreamRecording" process', e);
+      log('[handleStreamRecording] Error:', e);
     }
   }
 
@@ -148,33 +184,33 @@ export class TiktokRecorder {
   }
 
   #generateOutputPath() {
-    return path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(this.channel));
+    return path.resolve(OUTPUT_FOLDER_PATH, getOutputFilePattern(this.uniqueId));
   }
 
 	#startCallback() {
-    log(`Channel ${this.channel}. Recording started...`);
+    log(`Channel ${this.uniqueId}. Recording started...`);
   }
 
   #endCallback() {
-    log(`Channel ${this.channel}. Recording finished...`);
-    this.channel = null;
+    log(`Channel ${this.uniqueId}. Recording finished...`);
+    this.uniqueId = null;
   }
 
   #errorCallback(err, stdout, stderr) {
-    log(`Channel ${this.channel}. Error during recording:`, err);
+    log(`Channel ${this.uniqueId}. Error during recording:`, err);
     log(`Ffmpeg stdout:`, stdout);
     log(`Ffmpeg stderr:`, stderr);
   }
 
   async #stdoutCallback(stdoutLine) {
-    if (DEBUG === 'ffmpeg') {
-				await writeToLog(FFMPEG_LOG_PATH, stdoutLine);
-			}
-
-    const isCriticalWarning = FFMPED_CRITICAL_WARNINGS
-      .some(warning => stdoutLine.includes(warning));
-    if (isCriticalWarning) {
-      await this.stopRecording();
+    if (DEBUG) {
+      await writeToLog(FFMPEG_LOG_PATH, stdoutLine);
     }
+  }
+
+  on(event, callback) {
+    this.#recorder.on(event, callback);
+
+    return this;
   }
 }
