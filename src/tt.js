@@ -7,7 +7,6 @@ import CONFIG from './config.js';
 import {
 	log,
 	writeToLog,
-  isCriticalWarning,
 	getOutputFilePattern,
 } from './utils.js';
 
@@ -197,31 +196,16 @@ export class TiktokRecorder {
     this.uniqueId = null;
   }
 
-  async #errorCallback(err, stdout, stderr) {
+  #errorCallback(err, stdout, stderr) {
     log(`Channel ${this.uniqueId}. Error during recording:`, err);
     log(`Ffmpeg stdout:`, stdout);
     log(`Ffmpeg stderr:`, stderr);
-
-    try {
-      await this.stopRecording();
-    } catch (e) {
-      // skip error
-    }
   }
 
   async #stdoutCallback(stdoutLine) {
     try {
       if (DEBUG === 'ffmpeg') {
         await writeToLog(FFMPEG_LOG_PATH, stdoutLine);
-      }
-
-      if (isCriticalWarning(stdoutLine)) {
-        try {
-          this.#recorder.removeListener('stderr', this.#stdoutCallback);
-          await this.stopRecording();
-        } catch (e) {
-          // skip error
-        }
       }
     } catch (e) {
       log('ffmpegStdoutCallbackError:', e);

@@ -8,7 +8,6 @@ const {
 	EOL,
 	CHECK_SCHEDULE,
 	OUTPUT_FILE_EXT,
-	FFMPED_CRITICAL_WARNINGS,
 } = CONFIG;
 const appendFileAsync = promisify(fs.appendFile);
 
@@ -42,6 +41,3 @@ export const jobNextRunAt = (schedule = CHECK_SCHEDULE) => sendAt(schedule)
 		includeOffset: false,
 		suppressMilliseconds: true,
 	});
-
-export const isCriticalWarning = message => FFMPED_CRITICAL_WARNINGS
-	.some(warning => message.includes(warning));

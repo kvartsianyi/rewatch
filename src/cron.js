@@ -62,7 +62,7 @@ const handleStreamsRecordingJob = async () => {
 const handleStreamsRecording = CronJob.from({
 	cronTime: CHECK_SCHEDULE,
 	onTick: handleStreamsRecordingJob,
-	runOnInit: true,
+	// runOnInit: true,
 });
 handleStreamsRecording.start();
 
