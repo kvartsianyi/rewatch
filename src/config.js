@@ -6,7 +6,7 @@ let {
 	DEBUG,
 } = process.env;
 
-const TT_HEADERS = {
+const DEFAULT_TT_REQUEST_HEADERS = {
 	Connection: 'keep-alive',
 	'Cache-Control': 'max-age=0',
 	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
@@ -16,7 +16,40 @@ const TT_HEADERS = {
 	'Accept-Language': 'en-US,en;q=0.9',
 	'Accept-Encoding': 'gzip, deflate',
 };
-const URL_WEB_LIVE = "https://www.tiktok.com/@{channel}/live";
+const DEFAULT_TT_CLIENT_PARAMS = {
+	aid: 1988,
+	app_language: 'en-US',
+	app_name: 'tiktok_web',
+	browser_language: 'en',
+	browser_name: 'Mozilla',
+	browser_online: true,
+	browser_platform: 'Win32',
+	browser_version: '5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
+	cookie_enabled: true,
+	cursor: '',
+	internal_ext: '',
+	device_platform: 'web',
+	focus_state: true,
+	from_page: 'user',
+	history_len: 0,
+	is_fullscreen: false,
+	is_page_visible: true,
+	did_rule: 3,
+	fetch_rule: 1,
+	last_rtt: 0,
+	live_id: 12,
+	resp_content_type: 'protobuf',
+	screen_height: 1152,
+	screen_width: 2048,
+	tz_name: 'Europe/Berlin',
+	referer: 'https://www.tiktok.com/',
+	root_referer: 'https://www.tiktok.com/',
+	host: 'https://webcast.tiktok.com',
+	webcast_sdk_version: '1.3.0',
+	update_version_code: '1.3.0'
+};
+const WEB_LIVE_URL = "https://www.tiktok.com/@{uniqueId}/live";
+const API_LIVE_ROOM_URL = 'https://www.tiktok.com/api-live/user/room/';
 // 0 - Error or Inactive stream.
 // 1 - Stream Starting or Preparing (the stream is not yet live but in the setup phase).
 // 2 - Live
@@ -30,13 +63,6 @@ const IS_WINDOWS = process.platform.match(/win(32|64)/);
 const EOL = IS_WINDOWS ? '\r\n' : '\n';
 const FFMPEG_LOG_PATH = LOGS_FOLDER + '/ffmpeg-log.txt';
 const SIGI_STATE_LOG_PATH = LOGS_FOLDER + '/sigi-log.txt';
-
-const FFMREG_TIMESTAMP_WARNING = 'Timestamps are unset in a packet for stream';
-const FFMREG_NON_MONOTONOUS_DTS_WARNING = 'Non-monotonous DTS';
-const FFMPED_CRITICAL_WARNINGS = [
-	FFMREG_TIMESTAMP_WARNING,
-	FFMREG_NON_MONOTONOUS_DTS_WARNING,
-];
 const OUTPUT_FILE_EXT = 'mkv';
 
 CHANNELS = CHANNELS
@@ -51,12 +77,13 @@ const CONFIG = {
 	OUTPUT_FOLDER_PATH,
 	CHECK_SCHEDULE,
 	FFMPEG_LOG_PATH,
-	FFMPED_CRITICAL_WARNINGS,
 	SIGI_STATE_LOG_PATH,
 	OUTPUT_FILE_EXT,
 	IS_WINDOWS,
-	TT_HEADERS,
-	URL_WEB_LIVE,
+	DEFAULT_TT_REQUEST_HEADERS,
+	WEB_LIVE_URL,
+	DEFAULT_TT_CLIENT_PARAMS,
+	API_LIVE_ROOM_URL,
 	LIVE_STATUS,
 	EOL,
 	DEBUG,
