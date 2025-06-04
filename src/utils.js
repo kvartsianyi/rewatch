@@ -11,7 +11,23 @@ const {
 } = CONFIG;
 const appendFileAsync = promisify(fs.appendFile);
 
-export const log = (message, data = '') => console.log(message, data);
+export const log = (
+	message,
+	data = '',
+	options = {	
+		timestamp: true,
+ 	},
+) => {
+	const logArgs = [message, data];
+
+	if (options.timestamp) {
+		const now = new Date();
+  	const timestamp = now.toISOString().replace('T', ' ').slice(0, 19);
+		logArgs.unshift(`[${timestamp}]`);
+	}
+	
+  console.log(...logArgs);
+}
 
 export const timestamp = (date = new Date()) => {
 	const format = number => String(number).padStart(2, '0');

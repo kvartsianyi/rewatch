@@ -15,7 +15,7 @@ const INPUT_OPTIONS = [
 const OUTPUT_OPTIONS = [
 	'-c', 'copy',
 	'-f', 'segment',
-	'-segment_time', '1200', // 20 minutes
+	'-segment_time', '1800', // 20 minutes
 	'-reset_timestamps', '1',
 	...(OUTPUT_FILE_EXT === 'mp4' ? ['-movflags', '+faststart'] : []),
 ];

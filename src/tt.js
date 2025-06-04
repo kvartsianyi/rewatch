@@ -49,12 +49,12 @@ export class TiktokParser {
       return null;
     }
 
-    if (!liveRoomInfo.streamData) {
-      throw new Error(`${uniqueId} require to be authenticated.`);
-    }
-
     if (liveRoomInfo.status !== LIVE_STATUS) {
       return null;
+    }
+
+    if (!liveRoomInfo.streamData) {
+      throw new Error(`User ${uniqueId} require authorization.`);
     }
   
     const streams = this.#parseStreams(liveRoomInfo.streamData);

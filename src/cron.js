@@ -63,8 +63,8 @@ const handleStreamsRecording = CronJob.from({
 	cronTime: CHECK_SCHEDULE,
 	onTick: handleStreamsRecordingJob,
 	// runOnInit: true,
+	start: true,
 });
-handleStreamsRecording.start();
 
 const shutDown = async () => {
 	let retryAttempts = 5;
