@@ -11,6 +11,8 @@ import {
 } from './utils.js';
 
 const {
+  COOKIE,
+  STREAM_URL,
 	OUTPUT_FOLDER_PATH,
 	FFMPEG_LOG_PATH,
   DEFAULT_TT_REQUEST_HEADERS,
@@ -27,7 +29,10 @@ export class TiktokParser {
   constructor() {
     this.#httpClient = axios.create({
       timeout: 10000,
-      headers: DEFAULT_TT_REQUEST_HEADERS,
+      headers: {
+        ...DEFAULT_TT_REQUEST_HEADERS,
+        cookie: COOKIE,
+      },
     });
   }
 
@@ -138,6 +143,7 @@ export class TiktokRecorder {
 	#recorder;
 	#parser;
   uniqueId;
+  isRecording = false;
 
 	constructor(options) {
     this.#parser = new TiktokParser();
@@ -159,8 +165,8 @@ export class TiktokRecorder {
         throw new Error('Channel is required');
       }
 
-      const streamUrl = await this.#parser.getTtStreamUrl(this.uniqueId);
-		
+      const streamUrl = STREAM_URL?.replaceAll('\\u0026', '&') || await this.#parser.getTtStreamUrl(this.uniqueId);
+
       if (!streamUrl) {
         return null;
       }

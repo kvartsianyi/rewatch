@@ -1,4 +1,4 @@
-import { CronJob } from 'cron';
+import { CronJob, timeout } from 'cron';
 
 import CONFIG from './config.js';
 import { TiktokRecorder } from './tt.js';
@@ -19,7 +19,7 @@ const channelsToWatch = new Set(CHANNELS);
 const handleStreamRecording = async (uniqueId) => {
 	const tiktokRecorder = new TiktokRecorder();
 	tiktokRecorder.setChannel(uniqueId);
-	const stream = await tiktokRecorder.handleStreamRecording(uniqueId);
+	const stream = await tiktokRecorder.handleStreamRecording();
 
 	if (!stream) return null;
 	channelsToWatch.delete(uniqueId);
@@ -62,9 +62,9 @@ const handleStreamsRecordingJob = async () => {
 const handleStreamsRecording = CronJob.from({
 	cronTime: CHECK_SCHEDULE,
 	onTick: handleStreamsRecordingJob,
-	// runOnInit: true,
-	start: true,
+	runOnInit: timeout(CHECK_SCHEDULE) > 1000,
 });
+handleStreamsRecording.start();
 
 const shutDown = async () => {
 	let retryAttempts = 5;

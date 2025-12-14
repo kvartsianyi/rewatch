@@ -4,11 +4,11 @@
   "version": "1.0.0",
   "main": "./src/index.js",
   "engines": {
-    "node": "20"
+    "node": "20.x.x"
   },
   "scripts": {
     "start": "node --trace-warnings --env-file=.env ./src/cron.js",
-    "start:single": "node --trace-warnings --env-file=.env ./src/index.js"
+    "dev": "node --trace-warnings --env-file=.env ./src/index.js"
   },
   "keywords": [],
   "author": "",
