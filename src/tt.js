@@ -28,7 +28,7 @@ export class TiktokParser {
 
   constructor() {
     this.#httpClient = axios.create({
-      timeout: 10000,
+      timeout: 30000,
       headers: {
         ...DEFAULT_TT_REQUEST_HEADERS,
         cookie: COOKIE,
@@ -123,7 +123,7 @@ export class TiktokParser {
 
   async #isStreamAccessible(streamUrl) {
     try {
-      const { status } = await this.#httpClient.head(streamUrl, {
+      const { status } = await this.#httpClient.get(streamUrl, {
         responseType: 'stream',
       });
 
@@ -133,7 +133,7 @@ export class TiktokParser {
         return null;
       }
 
-      log('Error during stream accessibility check: ', e);
+      log('Error during stream accessibility check: ', e?.message);
       throw e;
     }
   }
