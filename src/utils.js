@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import { promisify } from 'node:util';
-import { sendAt } from 'cron';
+import ffmpeg from 'fluent-ffmpeg';
 
+import { sendAt } from 'cron';
 import CONFIG from './config.js';
 
 const {
@@ -57,3 +58,14 @@ export const jobNextRunAt = (schedule = CHECK_SCHEDULE) => sendAt(schedule)
 		includeOffset: false,
 		suppressMilliseconds: true,
 	});
+
+export const convertToMp4 = (inputPath, outputPath) => {
+	return new Promise((resolve, reject) => {
+			ffmpeg(inputPath)
+				.setStartTime(0)
+				.outputOptions('-c copy')
+				.on('end', resolve)
+				.on('error', reject)
+				.save(outputPath);
+		});
+}
