@@ -10,7 +10,6 @@ import { convertToMp4 } from './utils.js';
 // TODO: List of improvements
 // 1. Add watch mode(check if user is alive by interval) for single channel
 
-
 const { CHANNELS, OUTPUT_FOLDER_PATH } = CONFIG;
 
 const uniqueId = CHANNELS[0];
@@ -28,13 +27,13 @@ async function runRecorder(uniqueId) {
   const stream = await tiktokRecorder.handleStreamRecording();
   
   if (!stream) {
-    log(`uniqueId: ${uniqueId}. User is currently offline.`);
+    log('User is currently offline.', { uniqueId });
     return process.exit(0);
   }
 
   const convertCallback = async () => {
     try {
-      log(`uniqueId: ${uniqueId}. Convertation started...`);
+      log('Convertation started...', { uniqueId });
       const files = await readdir(OUTPUT_FOLDER_PATH);
       const mkvFiles = await files
       .filter(f => f.includes(uniqueId) && f.toLowerCase().endsWith('.mkv'));
@@ -55,9 +54,12 @@ async function runRecorder(uniqueId) {
       });
       
       await Promise.all(convertPromises);
-      log(`uniqueId: ${uniqueId}. Convertation finished!`);
+      log('Convertation finished!', { uniqueId });
     } catch(e) {
-      log(`uniqueId: ${uniqueId}. Convertation error: `, e?.message);
+      log('Convertation error: ', {
+        uniqueId,
+        error: e?.message,
+      });
     }
   };
 
@@ -65,7 +67,7 @@ async function runRecorder(uniqueId) {
     await convertCallback();
 
     if (shouldRetry) {
-      log(`uniqueId: ${uniqueId}. Recording restart...`);
+      log('Recording restart...', { uniqueId });
       await sleep(5000);
       await runRecorder(uniqueId);
       return;

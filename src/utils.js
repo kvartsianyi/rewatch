@@ -23,8 +23,13 @@ export const log = (
 
 	if (options.timestamp) {
 		const now = new Date();
-  	const timestamp = now.toISOString().replace('T', ' ').slice(0, 19);
-		logArgs.unshift(`[${timestamp}]`);
+		const time = now.toLocaleTimeString('en-GB', {
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+			hour12: false,
+		});
+		logArgs.unshift(`[${time}]`);
 	}
 	
   console.log(...logArgs);
