@@ -13,7 +13,10 @@ const INPUT_OPTIONS = [
 	'-fflags', '+genpts', // Generate missing PTS dynamically
 ];
 const OUTPUT_OPTIONS = [
-	'-c', 'copy',
+	'-c', 'libx264',
+	'-preset', 'veryfast',
+	'-crf', '23',
+	'-c:a', 'copy',
 	'-f', 'segment',
 	'-segment_time', '1800', // 20 minutes
 	'-reset_timestamps', '1',
