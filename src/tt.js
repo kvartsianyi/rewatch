@@ -118,7 +118,7 @@ export class TiktokParser {
   }
   
   #findBestStreamQualityUrl(streams, type = 'flv') {
-    return streams?.origin?.main?.[type];
+    return streams?.origin?.main?.[type] || streams?.hd?.main?.[type];
   }
 
   async #isStreamAccessible(streamUrl) {
@@ -194,16 +194,16 @@ export class TiktokRecorder {
   }
 
 	#startCallback() {
-    log(`Channel ${this.uniqueId}. Recording started...`);
+    log('Recording started...', { uniqueId: this.uniqueId });
   }
 
   #endCallback() {
-    log(`Channel ${this.uniqueId}. Recording finished...`);
+    log('Recording finished...', { uniqueId: this.uniqueId}  );
     this.uniqueId = null;
   }
 
   #errorCallback(err, stdout, stderr) {
-    log(`Channel ${this.uniqueId}. Error during recording:`, err);
+    log('Recording error...', { uniqueId: this.uniqueId, error: err });
     log(`Ffmpeg stdout:`, stdout);
     log(`Ffmpeg stderr:`, stderr);
   }
